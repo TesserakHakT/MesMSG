@@ -1,12 +1,8 @@
-#MES1&MESS
-
+# MesMSG
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using SQLite;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 using Xamarin.Forms;
 
 namespace MultiplatformMessagingApp
@@ -27,8 +23,7 @@ namespace MultiplatformMessagingApp
             string senderName = SenderEntry.Text;
             string receiverName = ReceiverEntry.Text;
             string content = MessageEntry.Text;
-            MessageType type = MessageType.Text; // Supposons que tous les messages sont du texte pour simplifier
-
+            MessageType type = MessageType.Text; // Assuming all messages are text for simplicity
             contactManager.SendMessage(senderName, receiverName, content, type);
             MessagesListView.ItemsSource = contactManager.GetMessagesForContact(receiverName);
         }
@@ -38,8 +33,7 @@ namespace MultiplatformMessagingApp
             string callerName = SenderEntry.Text;
             string receiverName = ReceiverEntry.Text;
             contactManager.MakeCall(callerName, receiverName, CallType.Voice);
-            // Implémentez la logique pour démarrer un appel vocal
-            StartCall(callerName, receiverName, CallType.Voice);
+            // Implement logic to start a voice call
         }
 
         private void VideoCallButton_Clicked(object sender, EventArgs e)
@@ -47,90 +41,91 @@ namespace MultiplatformMessagingApp
             string callerName = SenderEntry.Text;
             string receiverName = ReceiverEntry.Text;
             contactManager.MakeCall(callerName, receiverName, CallType.Video);
-            // Implémentez la logique pour démarrer un appel vidéo
-            StartCall(callerName, receiverName, CallType.Video);
-        }
-
-        private void CallAll_Calling(object sender, EventArgs e)
-        {
-            // Simule un appel vers tous les contacts enregistrés
-            foreach (var contact in contactManager.Contacts)
-            {
-                StartCall(contact.Name, CallType.Voice); // Vous pouvez également utiliser CallType.Video si nécessaire
-            }
-        }
-
-        private void StartCall(string contactName, CallType callType)
-        {
-            // Remplacez ces valeurs par vos informations d'authentification Twilio
-            const string accountSid = "VOTRE_SID";
-            const string authToken = "VOTRE_JETON";
-
-            TwilioClient.Init(accountSid, authToken);
-
-            // Numéro Twilio (vous pouvez obtenir un numéro Twilio sur leur site)
-            var fromPhoneNumber = new PhoneNumber("VOTRE_NUMERO_TWILIO");
-
-            // Numéro de téléphone du destinataire (à partir de vos contacts)
-            var toPhoneNumber = new PhoneNumber(contactName);
-
-            // Créez un appel
-            var call = CallResource.Create(
-                to: toPhoneNumber,
-                from: fromPhoneNumber,
-                url: new Uri("https://demo.twilio.com/docs/voice.xml") // URL de votre serveur avec les instructions d'appel
-            );
-
-            Console.WriteLine($"Appel {callType} à {contactName}");
+            // Implement logic to start a video call
         }
     }
 
     public class ContactManager
     {
         private SQLiteAsyncConnection database;
-        private int pageSize = 20; // Nombre de contacts à charger par page
+        private int pageSize = 20; // Number of contacts to load per page
 
-        public ObservableCollection<Contact> Contacts { get; set; } = new ObservableCollection<Contact>();
+        public ObservableCollection<Contact> Contacts { get; set; }
 
         public ContactManager()
         {
-            // Initialisez la connexion à la base de données ici
-            string dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "contacts.db");
+            string dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "contacts.db3");
             database = new SQLiteAsyncConnection(dbPath);
             database.CreateTableAsync<Contact>().Wait();
+            Contacts = new ObservableCollection<Contact>();
         }
 
-        public async Task LoadContacts()
+        public async void LoadContacts()
         {
-            Contacts = new ObservableCollection<Contact>(await database.Table<Contact>().ToListAsync());
-        }
-
-        public async Task SendMessage(string senderName, string receiverName, string content, MessageType type)
-        {
-            // Implémentez la logique pour envoyer un message ici
-            var message = new Message
+            // Load contacts from the database
+            int pageCount = 0;
+            var contacts = await database.Table<Contact>().Skip(pageCount * pageSize).Take(pageSize).ToListAsync();
+            
+            while (contacts.Count > 0)
             {
-                SenderName = senderName,
-                ReceiverName = receiverName,
-                Content = content,
-                Type = type
-            };
-            await database.InsertAsync(message);
+                foreach (var contact in contacts)
+                {
+                    Contacts.Add(contact);
+                }
+                
+                pageCount++;
+                contacts = await database.Table<Contact>().Skip(pageCount * pageSize).Take(pageSize).ToListAsync();
+            }
+        }
+
+        public async void SaveContact(Contact contact)
+        {
+            await database.InsertAsync(contact);
+            Contacts.Add(contact);
+        }
+
+        public void SendMessage(string senderName, string receiverName, string content, MessageType type)
+        {
+            // Send message logic
+        }
+
+        public async Task<List<Message>> GetMessagesForContact(string contactName)
+        {
+            // Get messages for a contact
+            return await database.Table<Message>().Where(m => m.Receiver == contactName).ToListAsync();
         }
 
         public void MakeCall(string callerName, string receiverName, CallType callType)
         {
-            // Implémentez la logique pour passer un appel (vocal ou vidéo) ici
-            // Vous pouvez ajouter des appels à une liste d'appels récents, etc.
+            // Initiate a voice or video call
         }
+    }
+
+    public enum MessageType
+    {
+        Text,
+        Voice
+    }
+
+    public enum CallType
+    {
+        Voice,
+        Video
     }
 
     public class Contact
     {
         [PrimaryKey, AutoIncrement]
-        public int Id { get; set; }
+        public int ID { get; set; }
         public string Name { get; set; }
-        public string
+        public string PhoneNumber { get; set; }
+    }
+
+    public class Message
+    {
+        public string Sender { get; set; }
+        public string Receiver { get; set; }
+        public string Content { get; set; }
+        public MessageType Type { get; set; }
     }
 }
-
